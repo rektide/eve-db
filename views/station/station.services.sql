@@ -5,8 +5,8 @@
 CREATE OR REPLACE VIEW station_services AS 
  SELECT station.stationid, service.serviceid, service.servicename
    FROM stastations station
-   JOIN staoperationservices_named service ON station.operationid = service.operationid;
+   JOIN names_staoperationservices service ON station.operationid = service.operationid;
 
-ALTER TABLE station_services OWNER TO eve;
+ALTER TABLE station_services OWNER TO eve_admin;
 
 

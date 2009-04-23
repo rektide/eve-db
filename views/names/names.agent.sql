@@ -12,6 +12,6 @@ CREATE OR REPLACE VIEW agent_names AS
    LEFT JOIN crpnpccorporations corp ON agent.corporationid = corp.corporationid
    LEFT JOIN chrfactions faction ON corp.factionid = faction.factionid;
 
-ALTER TABLE agent_names OWNER TO eve;
+ALTER TABLE agent_names OWNER TO eve_admin;
 
 

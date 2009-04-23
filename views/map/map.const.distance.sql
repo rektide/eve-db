@@ -7,6 +7,6 @@ CREATE OR REPLACE VIEW map_constellation_distance AS
    FROM mapconstellations constellation
    JOIN mapregions region ON constellation.regionid = region.regionid;
 
-ALTER TABLE map_constellation_distance OWNER TO eve;
+ALTER TABLE map_constellation_distance OWNER TO eve_admin;
 
 
