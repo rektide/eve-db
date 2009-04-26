@@ -8,13 +8,14 @@ $BODY$
 declare
 
 	primary_key text;
+	
 	vanila_column_list text;
 	fresh_column_list text;
 	existing_column_list text;
+	
 	null_value_list text;
 	not_null_list text;
 	where_query_list text;
-	tt text;
 	
 	loop_enum int;
 	
@@ -31,16 +32,14 @@ begin
 	fresh_column_list := 'fresh.' || array_to_string(columns, ',fresh.');
 	existing_column_list := 'existing.' || array_to_string(columns, ',existing.');
 	
-	loop_enum := array_upper( columns,1 );
 	null_value_list := 'existing.' || primary_key;
 	where_query_list := '';
-	not_null_list := '';
-	while loop_enum > 1 
-	loop
+	not_null_list := ''; 
+	
+	for loop_enum in 2 .. array_upper( columns,1 ) loop
 		null_value_list := null_value_list || ', null';
-		where_query_list := where_query_list || 'fresh.' || columns[loop_enum] || ' <> existing.' || columns[loop_enum] || ' or ';
+		where_query_list := where_query_list || 'fresh.' || columns[loop_enum] || ' is distinct from existing.' || columns[loop_enum] || ' or ';
 		not_null_list := not_null_list || 'and existing.' || columns[loop_enum] || ' is not null ';
-		loop_enum := loop_enum - 1;
 	end loop;
 	where_query_list := substring(where_query_list from 0 for char_length(where_query_list)-3) || ' or existing.' || primary_key || ' is null';
 	
@@ -54,9 +53,7 @@ begin
 			'left join ' || freshTable || ' as fresh ' ||
 			'on fresh.' || primary_key || ' = existing.' || primary_key || ' ' ||
 			'where fresh.' || primary_key || ' is null ' || not_null_list;
-
-		execute queryText;
-		raise notice 'TOMBSTONE % % DONETOMB', queryText, (select count(*) from tempDeltaInsertTable);		
+		execute queryText;		
 	end if;	
 	
 	-- load changed elements
@@ -67,7 +64,6 @@ begin
 		'left join ' || existingTable || ' as existing ' ||
 		'on fresh.' || primary_key || ' = existing.' || primary_key || ' ' ||
 		'where ' || where_query_list;
-
 	execute queryText;
 
 	return query select * from tempDeltaInsertTable;
