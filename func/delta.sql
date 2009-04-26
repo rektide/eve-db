@@ -2,7 +2,7 @@
 
 -- DROP FUNCTION delta(text, text, text[], timestamp without time zone, text, boolean);
 
-CREATE OR REPLACE FUNCTION delta(freshdata text, existingdata text, columns text[], dtt timestamp without time zone, dtt_column text, marktombstones boolean)
+CREATE OR REPLACE FUNCTION delta(freshTable text, existingTable text, columns text[], dtt timestamp, dtt_column text, marktombstones boolean)
   RETURNS SETOF record AS
 $BODY$
 declare
@@ -12,6 +12,7 @@ declare
 	fresh_column_list text;
 	existing_column_list text;
 	null_value_list text;
+	not_null_list text;
 	where_query_list text;
 	tt text;
 	
@@ -19,17 +20,10 @@ declare
 	
 	queryText text;
 
-	
-	bonusQuery text;
-	fresh_count int;
-	fresh_count2 int;
-	fresh_count3 int;
-	
-
 begin
 
 	drop table if exists tempDeltaInsertTable;
-	execute 'create local temp table tempDeltaInsertTable as select * from '|| existingData || ' limit 0';
+	execute 'create local temp table tempDeltaInsertTable as select * from '|| existingTable || ' limit 0';
 	
 	primary_key := columns[1];
 	
@@ -40,13 +34,15 @@ begin
 	loop_enum := array_upper( columns,1 );
 	null_value_list := 'existing.' || primary_key;
 	where_query_list := '';
+	not_null_list := '';
 	while loop_enum > 1 
 	loop
 		null_value_list := null_value_list || ', null';
 		where_query_list := where_query_list || 'fresh.' || columns[loop_enum] || ' <> existing.' || columns[loop_enum] || ' or ';
+		not_null_list := not_null_list || 'and existing.' || columns[loop_enum] || ' is not null ';
 		loop_enum := loop_enum - 1;
 	end loop;
-	where_query_list := substring(where_query_list from 0 for char_length(where_query_list)-3);
+	where_query_list := substring(where_query_list from 0 for char_length(where_query_list)-3) || ' or existing.' || primary_key || ' is null';
 	
 	if markTombstones
 	then	
@@ -54,39 +50,25 @@ begin
 		queryText := 'insert into tempDeltaInsertTable ' ||
 			'(' || vanila_column_list || ', ' || dtt_column || ') ' ||
 			'select ' || null_value_list || ', ' || quote_literal(dtt::text) || ' ' ||
-			'from ' || existingData || ' as existing ' ||
-			'left join ' || freshData || ' as fresh ' ||
+			'from ' || existingTable || ' as existing ' ||
+			'left join ' || freshTable || ' as fresh ' ||
 			'on fresh.' || primary_key || ' = existing.' || primary_key || ' ' ||
-			'where fresh.' || primary_key || ' is null';
+			'where fresh.' || primary_key || ' is null ' || not_null_list;
 
-		raise notice 'TOMBSTONE %', queryText;
 		execute queryText;
+		raise notice 'TOMBSTONE % % DONETOMB', queryText, (select count(*) from tempDeltaInsertTable);		
 	end if;	
-	
 	
 	-- load changed elements
 	queryText := 'insert into tempDeltaInsertTable ' || 
 		'(' || vanila_column_list || ', ' || dtt_column || ') ' ||
 		'select ' || fresh_column_list || ', ' || quote_literal(dtt) || ' ' ||
-		'from ' || freshData || ' as fresh ' ||
-		'left join ' || existingData || ' as existing ' ||
+		'from ' || freshTable || ' as fresh ' ||
+		'left join ' || existingTable || ' as existing ' ||
 		'on fresh.' || primary_key || ' = existing.' || primary_key || ' ' ||
 		'where ' || where_query_list;
 
 	execute queryText;
-
-
-	bonusQuery := 'select count(*) ' ||
-		'from ' || freshData || ' as fresh ' ||
-		'left join ' || existingData || ' as existing ' ||
-		'on fresh.' || primary_key || ' = existing.' || primary_key || ' ' ||
-		'where ' || where_query_list;
-
-	execute bonusQuery into fresh_count2;
-
-	execute 'select count(*) from ' || freshData into fresh_count;
-	--execute 'select count(*) from tempDeltaInsertTable' into fresh_count;
-	raise notice 'DELTA % % % %', fresh_count2, (select count(*) from tempSovFresh), (select count(*) from tempDeltaInsertTable), queryText;
 
 	return query select * from tempDeltaInsertTable;
 	
@@ -95,5 +77,5 @@ $BODY$
   LANGUAGE 'plpgsql' VOLATILE
   COST 100
   ROWS 1000;
-ALTER FUNCTION delta(text, text, text[], timestamp without time zone, text, boolean) OWNER TO postgres;
+ALTER FUNCTION delta(text, text, text[], timestamp, text, boolean) OWNER TO postgres;
 

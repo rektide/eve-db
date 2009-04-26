@@ -36,38 +36,30 @@ begin
 	insert into tempSovXml values (1, sovXml);
 	
 	-- load data into table
-	insert into tempSovFresh (solarsystemid, allianceid, constellationSovereignty, sovereigntyLevel, factionid, entryDate)
-	select solarsystemid::int, allianceid::int, constellationSovereignty::int, sovereigntyLevel::int, factionid::int, dtt
+	insert into tempSovFresh (solarsystemid, allianceid, const_sov, sov_level, factionid, entryDate)
+	select solarsystemid::int, allianceid::int, const_sov::int, sov_level::int, factionid::int, dtt
 	from xpath_table2
 	(
 		'id', 'doc', 'tempSovXml',
 		'//eveapi/result/rowset/row/@solarSystemID|//eveapi/result/rowset/row/@allianceID|//eveapi/result/rowset/row/@constellationSovereignty|//eveapi/result/rowset/row/@sovereigntyLevel|//eveapi/result/rowset/row/@factionID',
 		'1=1'
 	)
-	as t(id int, solarsystemid text, allianceid text, constellationSovereignty text, sovereigntyLevel text, factionid text);
+	as t(id int, solarsystemid text, allianceid text, const_sov text, sov_level text, factionid text);
 	
 	-- retrieve diffs
-	insert into tempSovNew (solarsystemid, allianceid, constellationSovereignty, sovereigntyLevel, factionid, entryDate)
-	select solarsystemid, allianceid, constellationSovereignty, sovereigntyLevel, factionid, entryDate
+	insert into api_sov (solarsystemid, allianceid, const_sov, sov_level, factionid, entryDate)
+	select solarsystemid, allianceid, const_sov, sov_level, factionid, entryDate
 	from delta(
-		'tempSovFresh', 'api_sov_recent', 'solarsystemid',
-		ARRAY['allianceid','constellationSovereignty','sovereigntyLevel','factionid'],
+		'tempSovFresh', 'api_sov_recent', 
+		ARRAY['allianceid','const_sov','sov_level','factionid'],
 		dtt, 'entryDate', true) 
-	as t(id int, solarsystemid int, allianceid int, constellationSovereignty int, sovereigntyLevel int, factionid int, entrydate timestamp);
-
-	-- insert new records
-	insert into api_sov (solarsystemid, allianceid, constellationSovereignty, sovereigntyLevel, factionid, entryDate)
-	select solarsystemid, allianceid, constellationSovereignty, sovereigntyLevel, factionid, entryDate
-	from tempSovNew;
+	as t(id bigint, solarsystemid int, allianceid int, const_sov int, sov_level int, factionid int, entrydate timestamp);
 
 	-- clean up
 	drop table tempSovXml;
 	drop table tempSovFresh;
 
-	alter table tempSovNew alter column id set default null;
-	drop sequence tempSovNew_id_seq;
-	
-	return query select * from tempSovNew;
+	return query select * from api_sov where entryDate = dtt;
 	
 end;
 $BODY$
